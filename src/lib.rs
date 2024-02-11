@@ -1,14 +1,16 @@
-use nih_plug::prelude::{*, Buffer};
+use nih_plug::prelude::{Buffer, *};
 use fundsp::hacker32::*;
+use voicer::Voicer;
 use std::sync::Arc;
+
+mod voicer;
 
 struct Resotool {
     params: Arc<ResotoolParams>,
-    audio: Box<dyn AudioUnit32>,
     bandwidth: Shared<f32>,
-    cutoff: Shared<f32>,
-    wetdry: Shared<f32>,
+    voicer: Voicer,
 }
+
 
 #[derive(Params)]
 struct ResotoolParams {
@@ -21,16 +23,11 @@ struct ResotoolParams {
 impl Default for Resotool {
     fn default() -> Self {
         let params = ResotoolParams::default();
-        let cutoff = shared(440.0);
-        let wetdry = shared(0.0);
         let bandwidth = shared(params.bandwidth.default_plain_value());
-        let audio = ((var(&wetdry) * pass() | var(&cutoff) | var(&bandwidth)) >> resonator()) & (((1.0 - var(&wetdry)) * pass()));
         Self {
             params: Arc::new(params),
-            audio: Box::new(audio),
             bandwidth: bandwidth,
-            wetdry: wetdry,
-            cutoff: cutoff,
+            voicer: Voicer::new(),
         }
     }
 }
@@ -94,7 +91,7 @@ impl Plugin for Resotool {
         // Resize buffers and perform other potentially expensive initialization operations here.
         // The `reset()` function is always called right after this function. You can remove this
         // function if you do not need it.
-        self.audio.set_sample_rate(_buffer_config.sample_rate.into());
+        self.voicer.net.set_sample_rate(_buffer_config.sample_rate.into());
         true
     }
 
@@ -113,12 +110,10 @@ impl Plugin for Resotool {
         while let Some(event) = context.next_event() {
             match event {
                 NoteEvent::NoteOn { note, .. } => {
-                    let freq_hz = pitch_calc::hz_from_step(note.into());
-                    self.cutoff.set(freq_hz);
-                    self.wetdry.set(1.0);
+                    self.voicer.note_on(note);
                 }
-                NoteEvent::NoteOff { .. } => {
-                    self.wetdry.set(0.0);
+                NoteEvent::NoteOff { note, .. } => {
+                    self.voicer.note_off(note);
                 }
                 _ => (),
             }
@@ -127,7 +122,7 @@ impl Plugin for Resotool {
             // Smoothing is optionally built into the parameters themselves
             let output_buffer = &mut [0f32; 1];
             for sample in channel_samples {
-                self.audio.tick(&[*sample], output_buffer);
+                self.voicer.net.tick(&[*sample], output_buffer);
                 *sample = output_buffer[0];
             }
         }
