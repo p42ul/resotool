@@ -2,23 +2,18 @@ use nih_plug::prelude::{*, Buffer};
 use fundsp::hacker32::*;
 use std::sync::Arc;
 
-// This is a shortened version of the gain example with most comments removed, check out
-// https://github.com/robbert-vdh/nih-plug/blob/master/plugins/examples/gain/src/lib.rs to get
-// started
-
 struct Resotool {
     params: Arc<ResotoolParams>,
     audio: Box<dyn AudioUnit32>,
     bandwidth: Shared<f32>,
     cutoff: Shared<f32>,
+    wetdry: Shared<f32>,
 }
 
 #[derive(Params)]
 struct ResotoolParams {
     /// The parameter's ID is used to identify the parameter in the wrappred plugin API. As long as
-    /// these IDs remain constant, you can rename and reorder these fields as you wish. The
-    /// parameters are exposed to the host in the same order they were defined. In this case, this
-    /// gain parameter is stored as linear gain while the values are displayed in decibels.
+    /// these IDs remain constant, you can rename and reorder these fields as you wish.
     #[id = "cutoff"]
     pub bandwidth: FloatParam,
 }
@@ -27,12 +22,14 @@ impl Default for Resotool {
     fn default() -> Self {
         let params = ResotoolParams::default();
         let cutoff = shared(440.0);
+        let wetdry = shared(0.0);
         let bandwidth = shared(params.bandwidth.default_plain_value());
-        let audio = (pass() | var(&cutoff) | var(&bandwidth)) >> resonator();
+        let audio = ((var(&wetdry) * pass() | var(&cutoff) | var(&bandwidth)) >> resonator()) & (((1.0 - var(&wetdry)) * pass()));
         Self {
             params: Arc::new(params),
             audio: Box::new(audio),
             bandwidth: bandwidth,
+            wetdry: wetdry,
             cutoff: cutoff,
         }
     }
@@ -41,10 +38,7 @@ impl Default for Resotool {
 impl Default for ResotoolParams {
     fn default() -> Self {
         Self {
-            // This gain is stored as linear gain. NIH-plug comes with useful conversion functions
-            // to treat these kinds of parameters as if we were dealing with decibels. Storing this
-            // as decibels is easier to work with, but requires a conversion for every sample.
-            bandwidth: FloatParam::new("Q", 440.0, FloatRange::SymmetricalSkewed { min: 0.0, max: 10.0, factor: 0.75, center: 3.0 }),
+            bandwidth: FloatParam::new("Q", 440.0, FloatRange::SymmetricalSkewed { min: 1.0, max: 100.0, factor: 0.75, center: 40.0 }),
         }
     }
 }
@@ -121,9 +115,10 @@ impl Plugin for Resotool {
                 NoteEvent::NoteOn { note, .. } => {
                     let freq_hz = pitch_calc::hz_from_step(note.into());
                     self.cutoff.set(freq_hz);
+                    self.wetdry.set(1.0);
                 }
                 NoteEvent::NoteOff { .. } => {
-                    self.cutoff.set(0.0);
+                    self.wetdry.set(0.0);
                 }
                 _ => (),
             }
