@@ -1,119 +1,100 @@
 use fundsp::hacker32::*;
-use heapless::{Vec, FnvIndexSet};
 use pitch_calc::hz_from_step;
-
 
 const NUM_INPUTS: usize = 1;
 const NUM_OUTPUTS: usize = 1;
-const NUM_VOICES: usize = 8;
+const NUM_VOICES: usize = 4;
 
 /// A tunable resonator
-pub fn new_resonator(wetdry: Shared<f32>, cutoff: Shared<f32>, bandwidth: Shared<f32>) -> Box<dyn AudioUnit32> {
-    Box::new(((var(&wetdry) * pass() | var(&cutoff) | var(&bandwidth)) >> resonator()) & (((1.0 - var(&wetdry)) * pass())))
+pub fn new_resonator(
+    wetdry: Shared<f32>,
+    cutoff: Shared<f32>,
+    bandwidth: Shared<f32>,
+) -> Box<dyn AudioUnit32> {
+    Box::new((var(&wetdry) * pass() | var(&cutoff) | var(&bandwidth)) >> resonator())
 }
 
 pub struct Voicer {
-    voices_off: Vec<Voice, NUM_VOICES>,
-    voices_on: Vec<Voice, NUM_VOICES>,
-    notes: FnvIndexSet<u8, NUM_VOICES>,
+    last_played: u32,
+    voices: Box<[Voice; NUM_VOICES]>,
     pub net: Net32,
 }
 
 impl Voicer {
     pub fn note_on(&mut self, midi_note: u8) {
-        match self.notes.insert(midi_note) {
-            Ok(inserted) => {
-                if !inserted {
-                    return;
-                }
-            },
-            Err(_) => panic!("Couldn't insert MIDI note to FnvHashSet"),
-        }
-        let mut voice = match self.voices_off.pop() {
-            Some(voice) => voice,
-            None => {
-                let voice = self.voices_on.pop().expect("Stole a voice when there were no voices to steal");
-                self.notes.remove(&voice.note);
-                voice
+        self.last_played += 1;
+        for i in 0..NUM_VOICES {
+            if !(self.voices[i].sounding) {
+                self.voices[i].note_on(midi_note, self.last_played);
+                return;
             }
-        };
-        voice.note_on(midi_note);
-        if let Err(_) = self.voices_on.insert(0, voice) {
-            panic!("Couldn't push voice into voices_on Vec");
         }
+        // All voices are sounding, interrupt the last-used voice
+        let mut voice_index: usize = 0;
+        for i in 0..NUM_VOICES {
+            if self.voices[i].last_played < self.voices[voice_index].last_played {
+                voice_index = i;
+            }
+        }
+        self.voices[voice_index].note_on(midi_note, self.last_played);
     }
 
     pub fn note_off(&mut self, midi_note: u8) {
-        if !self.notes.remove(&midi_note) {
-            return;
-        }
         for i in 0..NUM_VOICES {
-            if let Some(voice) = self.voices_on.get(i) {
-                if voice.note == midi_note {
-                    voice.note_off(midi_note);
-                    self.voices_on.remove(i);
-                    // Voicer discards duplicate notes, so a single note
-                    // can appear at most once.
-                    break;
-                }
+            if self.voices[i].note == midi_note {
+                self.voices[i].note_off(midi_note);
             }
         }
     }
-    
+
     pub fn new() -> Self {
-        let mut voices_off = Vec::<Voice, NUM_VOICES>::new();
-        let voices_on = Vec::<Voice, NUM_VOICES>::new();
+        let voices: [Voice; NUM_VOICES] = std::array::from_fn(|_| Voice::new());
         let mut net = Net32::new(NUM_INPUTS, NUM_OUTPUTS);
-        for _ in 0..NUM_VOICES {
-            let voice = Voice::new();
-            let id = net.push(new_resonator(voice.wetdry.clone(), voice.cutoff.clone(), voice.bandwidth.clone()));
-            match voices_off.push(voice) {
-                Ok(_) => {
-                    net.pipe_input(id);
-                    net.pipe_output(id);
-                }
-                Err(_) => panic!("Couldn't initialize {} voices", NUM_VOICES),
-            }
+        for voice in voices.iter() {
+            let id = net.push(new_resonator(
+                voice.wetdry.clone(),
+                voice.cutoff.clone(),
+                voice.bandwidth.clone(),
+            ));
+            net.pipe_input(id);
+            net.pipe_output(id);
         }
         Self {
-            voices_on: voices_on,
-            voices_off: voices_off,
-            notes: FnvIndexSet::<u8, NUM_VOICES>::new(),
+            last_played: 0,
+            voices: Box::new(voices),
             net: net,
         }
     }
 }
 
 struct Voice {
+    last_played: u32,
     note: u8,
+    sounding: bool,
     cutoff: Shared<f32>,
     wetdry: Shared<f32>,
     bandwidth: Shared<f32>,
 }
 
 impl Voice {
-    fn on(&self) {
+    fn note_on(&mut self, midi_note: u8, last_played: u32) {
         self.wetdry.set(1.0);
-    }
-
-    fn off(&self) {
-        self.wetdry.set(0.0);
-    }
-
-
-    pub fn note_on(&mut self, midi_note: u8) {
-        self.on();
         self.note = midi_note;
+        self.sounding = true;
         self.cutoff.set(hz_from_step(midi_note.into()));
+        self.last_played = last_played;
     }
 
-    pub fn note_off(&self, _midi_note: u8) {
-        self.off();
+    fn note_off(&mut self, _midi_note: u8) {
+        self.wetdry.set(0.0);
+        self.sounding = false;
     }
 
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
+            last_played: 0,
             note: 64,
+            sounding: false,
             cutoff: Shared::new(440.0),
             wetdry: Shared::new(0.0),
             bandwidth: Shared::new(100.0),
