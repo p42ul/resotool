@@ -1,3 +1,4 @@
+use nih_plug::prelude::*;
 use fundsp::hacker32::*;
 use pitch_calc::hz_from_step;
 
@@ -48,9 +49,13 @@ impl Voicer {
     }
 
     pub fn new() -> Self {
-        let voices: [Voice; NUM_VOICES] = std::array::from_fn(|_| Voice::new());
+        let mut voices: [Voice; NUM_VOICES] = std::array::from_fn(|_| Voice::default() );
+        for i in 0..NUM_VOICES {
+            voices[i] = Voice::default();
+        }
         let mut net = Net32::new(NUM_INPUTS, NUM_OUTPUTS);
-        for voice in voices.iter() {
+        for voice in &voices {
+            nih_log!("adding voice: {:p}", &voice);
             let id = net.push(new_resonator(
                 voice.wetdry.clone(),
                 voice.cutoff.clone(),
@@ -76,6 +81,19 @@ struct Voice {
     bandwidth: Shared<f32>,
 }
 
+impl Default for Voice {
+    fn default() -> Self {
+        Self {
+            last_played: 0,
+            note: 64,
+            sounding: false,
+            cutoff: Shared::new(440.0),
+            wetdry: Shared::new(0.0),
+            bandwidth: Shared::new(100.0),
+        }
+    }
+}
+
 impl Voice {
     fn note_on(&mut self, midi_note: u8, last_played: u32) {
         self.wetdry.set(1.0);
@@ -88,16 +106,5 @@ impl Voice {
     fn note_off(&mut self, _midi_note: u8) {
         self.wetdry.set(0.0);
         self.sounding = false;
-    }
-
-    fn new() -> Self {
-        Self {
-            last_played: 0,
-            note: 64,
-            sounding: false,
-            cutoff: Shared::new(440.0),
-            wetdry: Shared::new(0.0),
-            bandwidth: Shared::new(100.0),
-        }
     }
 }
