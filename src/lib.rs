@@ -1,16 +1,13 @@
 use nih_plug::prelude::{Buffer, *};
-use fundsp::hacker32::*;
-use voicer::Voicer;
 use std::sync::Arc;
+use voicer::Voicer;
 
 mod voicer;
 
 struct Resotool {
     params: Arc<ResotoolParams>,
-    bandwidth: Shared<f32>,
     voicer: Voicer,
 }
-
 
 #[derive(Params)]
 struct ResotoolParams {
@@ -23,10 +20,8 @@ struct ResotoolParams {
 impl Default for Resotool {
     fn default() -> Self {
         let params = ResotoolParams::default();
-        let bandwidth = shared(params.bandwidth.default_plain_value());
         Self {
             params: Arc::new(params),
-            bandwidth: bandwidth,
             voicer: Voicer::new(),
         }
     }
@@ -35,7 +30,16 @@ impl Default for Resotool {
 impl Default for ResotoolParams {
     fn default() -> Self {
         Self {
-            bandwidth: FloatParam::new("Q", 440.0, FloatRange::SymmetricalSkewed { min: 1.0, max: 100.0, factor: 0.75, center: 40.0 }),
+            bandwidth: FloatParam::new(
+                "Q",
+                440.0,
+                FloatRange::SymmetricalSkewed {
+                    min: 1.0,
+                    max: 100.0,
+                    factor: 0.75,
+                    center: 40.0,
+                },
+            ),
         }
     }
 }
@@ -62,7 +66,6 @@ impl Plugin for Resotool {
         // only one input and output channel would be called 'Mono'.
         names: PortNames::const_default(),
     }];
-
 
     const MIDI_INPUT: MidiConfig = MidiConfig::Basic;
     const MIDI_OUTPUT: MidiConfig = MidiConfig::None;
@@ -91,7 +94,9 @@ impl Plugin for Resotool {
         // Resize buffers and perform other potentially expensive initialization operations here.
         // The `reset()` function is always called right after this function. You can remove this
         // function if you do not need it.
-        self.voicer.net.set_sample_rate(_buffer_config.sample_rate.into());
+        self.voicer
+            .audio
+            .set_sample_rate(_buffer_config.sample_rate.into());
         true
     }
 
@@ -106,7 +111,7 @@ impl Plugin for Resotool {
         _aux: &mut AuxiliaryBuffers,
         context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
-        self.bandwidth.set(self.params.bandwidth.value());
+        self.voicer.set_bandwidth(self.params.bandwidth.value());
         while let Some(event) = context.next_event() {
             match event {
                 NoteEvent::NoteOn { note, .. } => {
@@ -122,7 +127,7 @@ impl Plugin for Resotool {
             // Smoothing is optionally built into the parameters themselves
             let output_buffer = &mut [0f32; 1];
             for sample in channel_samples {
-                self.voicer.net.tick(&[*sample], output_buffer);
+                self.voicer.audio.tick(&[*sample], output_buffer);
                 *sample = output_buffer[0];
             }
         }
