@@ -31,8 +31,8 @@ impl Default for ResotoolParams {
     fn default() -> Self {
         Self {
             bandwidth: FloatParam::new(
-                "Q",
-                440.0,
+                "Bandwidth (Hz)",
+                40.0,
                 FloatRange::SymmetricalSkewed {
                     min: 1.0,
                     max: 100.0,
