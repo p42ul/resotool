@@ -1,0 +1,32 @@
+name: Bundle and Create Artifact
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Set up Rust
+        uses: actions/setup-rust@v1
+        with:
+          rust-version: stable
+
+      - name: Bundle resotool
+        run: cargo xtask bundle resotool --release
+
+      - name: Create Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: resotool-${{ matrix.os }}
+          path: ./target/bundled/Resotool.vst3
