@@ -18,10 +18,10 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
-      - name: Bundle resotool
+      - name: Bundle resotool (macOS)
         if: matrix.os == 'macos-latest'
-        run: cargo xtask bundle-universal resotool --release
-      - name: Bundle resotool
+        run: rustup target add aarch64-apple-darwin && cargo xtask bundle-universal resotool --release
+      - name: Bundle resotool (Windows and Linux)
         if: matrix.os != 'macos-latest'
         run: cargo xtask bundle resotool --release
       - name: Create Artifact
