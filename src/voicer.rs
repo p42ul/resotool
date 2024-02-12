@@ -1,5 +1,5 @@
-use nih_plug::prelude::*;
 use fundsp::hacker32::*;
+use nih_plug::prelude::*;
 use pitch_calc::hz_from_step;
 
 const NUM_INPUTS: usize = 1;
@@ -7,12 +7,10 @@ const NUM_OUTPUTS: usize = 1;
 const NUM_VOICES: usize = 4;
 
 /// A tunable resonator
-pub fn new_resonator(
-    wetdry: Shared<f32>,
-    cutoff: Shared<f32>,
-    bandwidth: Shared<f32>,
-) -> Box<dyn AudioUnit32> {
-    Box::new((var(&wetdry) * pass() | var(&cutoff) | var(&bandwidth)) >> resonator())
+fn new_resonator(voice: &Voice) -> Box<dyn AudioUnit32> {
+    Box::new(
+        (var(&voice.wetdry) * pass() | var(&voice.cutoff) | var(&voice.bandwidth)) >> resonator(),
+    )
 }
 
 pub struct Voicer {
@@ -49,20 +47,12 @@ impl Voicer {
     }
 
     pub fn new() -> Self {
-        let mut voices: [Voice; NUM_VOICES] = std::array::from_fn(|_| Voice::default() );
-        for i in 0..NUM_VOICES {
-            voices[i] = Voice::default();
-        }
+        let voices: [Voice; NUM_VOICES] = std::array::from_fn(|_| Voice::default());
         let mut net = Net32::new(NUM_INPUTS, NUM_OUTPUTS);
-        for voice in &voices {
-            nih_log!("adding voice: {:p}", &voice);
-            let id = net.push(new_resonator(
-                voice.wetdry.clone(),
-                voice.cutoff.clone(),
-                voice.bandwidth.clone(),
-            ));
-            net.pipe_input(id);
-            net.pipe_output(id);
+        for voice in voices.iter() {
+            let resonator = new_resonator(&voice);
+            let id = net.push(resonator);
+            todo!("have to split() and then join() the filterbank somehow");
         }
         Self {
             last_played: 0,
@@ -107,4 +97,5 @@ impl Voice {
         self.wetdry.set(0.0);
         self.sounding = false;
     }
+
 }
