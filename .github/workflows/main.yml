@@ -19,6 +19,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
       - name: Bundle resotool
+        if: matrix.os == 'macos-latest'
+        run: cargo xtask bundle-universal resotool --release
+      - name: Bundle resotool
+        if: matrix.os != 'macos-latest'
         run: cargo xtask bundle resotool --release
       - name: Create Artifact
         uses: actions/upload-artifact@v4
