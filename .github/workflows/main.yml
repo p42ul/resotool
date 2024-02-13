@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Bundle resotool (macOS)
         if: matrix.os == 'macos-latest'
         run: rustup target add aarch64-apple-darwin && cargo xtask bundle-universal resotool --release
