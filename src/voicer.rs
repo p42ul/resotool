@@ -1,5 +1,5 @@
 use fundsp::hacker32::*;
-use pitch_calc::hz_from_step;
+use nih_plug::util::midi_note_to_freq;
 
 // Make sure to change these together
 const NUM_VOICES: usize = 8;
@@ -88,7 +88,7 @@ impl Voice {
         self.wetdry.set(1.0);
         self.note = midi_note;
         self.sounding = true;
-        self.cutoff.set(hz_from_step(midi_note.into()));
+        self.cutoff.set(midi_note_to_freq(midi_note));
         self.last_played = last_played;
     }
 
