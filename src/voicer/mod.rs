@@ -13,10 +13,22 @@ pub struct Voicer {
     pub audio: Box<dyn AudioUnit32>,
 }
 
+pub struct VoicerParams {
+    pub bandwidth: f32,
+    pub attack: f32,
+    pub decay: f32,
+    pub sustain: f32,
+    pub release: f32,
+}
+
 impl Voicer {
-    pub fn set_bandwidth(&self, bandwidth: f32) {
+    pub fn update(&self, params: VoicerParams) {
         for voice in self.voices.iter() {
-            voice.bandwidth.set(bandwidth);
+            voice.bandwidth.set(params.bandwidth);
+            voice.adsr.attack.set(params.attack);
+            voice.adsr.decay.set(params.decay);
+            voice.adsr.sustain.set(params.sustain);
+            voice.adsr.release.set(params.release);
         }
     }
 

@@ -1,6 +1,6 @@
 use nih_plug::prelude::{Buffer, *};
 use std::sync::Arc;
-use voicer::Voicer;
+use voicer::{Voicer, VoicerParams};
 
 mod voicer;
 
@@ -15,6 +15,14 @@ struct ResotoolParams {
     /// these IDs remain constant, you can rename and reorder these fields as you wish.
     #[id = "cutoff"]
     pub bandwidth: FloatParam,
+    #[id = "attack"]
+    pub attack: FloatParam,
+    #[id = "decay"]
+    pub decay: FloatParam,
+    #[id = "sustain"]
+    pub sustain: FloatParam,
+    #[id = "release"]
+    pub release: FloatParam,
 }
 
 impl Default for Resotool {
@@ -27,19 +35,34 @@ impl Default for Resotool {
     }
 }
 
+fn adsr_param(name: &str) -> FloatParam {
+    FloatParam::new(
+        name,
+        1.0,
+        FloatRange::Skewed {
+            min: 0.0,
+            max: 10.0,
+            factor: 0.5,
+        },
+    )
+}
+
 impl Default for ResotoolParams {
     fn default() -> Self {
         Self {
             bandwidth: FloatParam::new(
                 "Bandwidth (Hz)",
                 40.0,
-                FloatRange::SymmetricalSkewed {
+                FloatRange::Skewed {
                     min: 1.0,
                     max: 100.0,
-                    factor: 0.75,
-                    center: 40.0,
+                    factor: 0.5,
                 },
             ),
+            attack: adsr_param("Attack"),
+            decay: adsr_param("Decay"),
+            sustain: FloatParam::new("Sustain", 1.0, FloatRange::Linear { min: 0.0, max: 1.0 }),
+            release: adsr_param("Release"),
         }
     }
 }
@@ -111,7 +134,14 @@ impl Plugin for Resotool {
         _aux: &mut AuxiliaryBuffers,
         context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
-        self.voicer.set_bandwidth(self.params.bandwidth.value());
+        let voicer_params = VoicerParams {
+            bandwidth: self.params.bandwidth.value(),
+            attack: self.params.attack.value(),
+            decay: self.params.decay.value(),
+            sustain: self.params.sustain.value(),
+            release: self.params.release.value(),
+        };
+        self.voicer.update(voicer_params);
         while let Some(event) = context.next_event() {
             match event {
                 NoteEvent::NoteOn { note, .. } => {
