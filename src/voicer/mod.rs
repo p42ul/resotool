@@ -1,6 +1,8 @@
 use fundsp::hacker32::*;
 use nih_plug::util::midi_note_to_freq;
 
+mod adsr;
+
 // Make sure to change these together
 const NUM_VOICES: usize = 8;
 type VoiceSize = U8;
@@ -48,8 +50,17 @@ impl Voicer {
         let voices: [Voice; NUM_VOICES] = std::array::from_fn(|_| Voice::default());
         let filterbank = stack::<VoiceSize, _, _>(|i| {
             let voice = &voices[i as usize];
-            // A tunable resonator
-            (var(&voice.wetdry) * pass() | var(&voice.cutoff) | var(&voice.bandwidth))
+            (
+                pass() *
+                (
+                    var(&voice.trigger) >>
+                    (adsr::adsr_shared(voice.adsr.attack.clone(),
+                                       voice.adsr.decay.clone(),
+                                       voice.adsr.sustain.clone(),
+                                       voice.adsr.release.clone())))
+                    | var(&voice.cutoff) | var(&voice.bandwidth
+                )
+            )
                 >> resonator()
         });
         let audio = Box::new(split() >> filterbank >> join());
@@ -65,8 +76,9 @@ struct Voice {
     last_played: u32,
     note: u8,
     sounding: bool,
+    trigger: Shared<f32>,
+    adsr: adsr::Adsr,
     cutoff: Shared<f32>,
-    wetdry: Shared<f32>,
     bandwidth: Shared<f32>,
 }
 
@@ -76,16 +88,17 @@ impl Default for Voice {
             last_played: 0,
             note: 64,
             sounding: false,
+            trigger: Shared::new(0.0),
             cutoff: Shared::new(440.0),
-            wetdry: Shared::new(0.0),
             bandwidth: Shared::new(100.0),
+            adsr: adsr::Adsr::default(),
         }
     }
 }
 
 impl Voice {
     fn note_on(&mut self, midi_note: u8, last_played: u32) {
-        self.wetdry.set(1.0);
+        self.trigger.set(1.0);
         self.note = midi_note;
         self.sounding = true;
         self.cutoff.set(midi_note_to_freq(midi_note));
@@ -93,7 +106,7 @@ impl Voice {
     }
 
     fn note_off(&mut self, _midi_note: u8) {
-        self.wetdry.set(0.0);
+        self.trigger.set(0.0);
         self.sounding = false;
     }
 }
