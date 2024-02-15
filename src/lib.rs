@@ -59,10 +59,10 @@ impl Default for ResotoolParams {
                     factor: 0.5,
                 },
             ),
-            attack: adsr_param("Attack"),
-            decay: adsr_param("Decay"),
-            sustain: FloatParam::new("Sustain", 1.0, FloatRange::Linear { min: 0.0, max: 1.0 }),
-            release: adsr_param("Release"),
+            attack: adsr_param("Attack (seconds)"),
+            decay: adsr_param("Decay (seconds)"),
+            sustain: FloatParam::new("Sustain (seconds)", 1.0, FloatRange::Linear { min: 0.0, max: 1.0 }),
+            release: adsr_param("Release (seconds)"),
         }
     }
 }
