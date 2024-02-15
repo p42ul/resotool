@@ -1,6 +1,6 @@
 [package]
 name = "resotool"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Paul Buser <paul@beepyversion.com>"]
 license = "GPL-3.0-or-later"
@@ -15,12 +15,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 fundsp = "0.16.0"
-# Remove the `assert_process_allocs` feature to allow allocations on the audio
-# thread in debug builds.
 nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", features = ["assert_process_allocs"] }
-# Uncomment the below line to disable the on-by-default VST3 feature to remove
-# the GPL compatibility requirement
-# nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", default_features = false, features = ["assert_process_allocs"] }
 
 [profile.release]
 lto = "thin"
