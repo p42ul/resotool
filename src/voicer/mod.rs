@@ -4,7 +4,7 @@ use nih_plug::util::midi_note_to_freq;
 mod adsr;
 
 // Make sure to change these together
-pub const NUM_VOICES: usize = 8;
+const NUM_VOICES: usize = 8;
 type VoiceSize = U8;
 
 pub struct Voicer {
