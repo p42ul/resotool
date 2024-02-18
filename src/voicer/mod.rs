@@ -4,12 +4,13 @@ use nih_plug::util::midi_note_to_freq;
 mod adsr;
 
 // Make sure to change these together
-const NUM_VOICES: usize = 8;
+pub const NUM_VOICES: usize = 8;
 type VoiceSize = U8;
 
 pub struct Voicer {
     last_played: u32,
     voices: Box<[Voice; NUM_VOICES]>,
+    voices_sounding: Shared<f32>,
     pub audio: Box<dyn AudioUnit32>,
 }
 
@@ -22,6 +23,11 @@ pub struct VoicerParams {
 }
 
 impl Voicer {
+    fn modify_voices_sounding(&self, diff: f32) {
+        let voices_sounding = self.voices_sounding.value();
+        self.voices_sounding.set(voices_sounding + diff);
+    }
+
     pub fn update(&self, params: VoicerParams) {
         for voice in self.voices.iter() {
             voice.bandwidth.set(params.bandwidth);
@@ -37,6 +43,7 @@ impl Voicer {
         for i in 0..NUM_VOICES {
             if !(self.voices[i].sounding) {
                 self.voices[i].note_on(midi_note, self.last_played);
+                self.modify_voices_sounding(1.0);
                 return;
             }
         }
@@ -48,18 +55,21 @@ impl Voicer {
             }
         }
         self.voices[voice_index].note_on(midi_note, self.last_played);
+        self.modify_voices_sounding(1.0);
     }
 
     pub fn note_off(&mut self, midi_note: u8) {
         for i in 0..NUM_VOICES {
             if self.voices[i].note == midi_note {
                 self.voices[i].note_off(midi_note);
+                self.modify_voices_sounding(-1.0);
             }
         }
     }
 
     pub fn new() -> Self {
         let voices: [Voice; NUM_VOICES] = std::array::from_fn(|_| Voice::default());
+        let voices_sounding: Shared<f32> = Shared::new(0.0);
         let filterbank = stack::<VoiceSize, _, _>(|i| {
             let voice = &voices[i as usize];
             (
@@ -73,12 +83,13 @@ impl Voicer {
                     | var(&voice.cutoff) | var(&voice.bandwidth
                 )
             )
-                >> resonator()
+                >> resonator() * var_fn(&voices_sounding, |vs| NUM_VOICES as f32 / vs)
         });
         let audio = Box::new(split() >> filterbank >> join());
         Self {
             last_played: 0,
             voices: Box::new(voices),
+            voices_sounding: voices_sounding,
             audio: audio,
         }
     }

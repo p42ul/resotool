@@ -52,7 +52,7 @@ impl Default for ResotoolParams {
         Self {
             bandwidth: FloatParam::new(
                 "Bandwidth (Hz)",
-                40.0,
+                10.0,
                 FloatRange::Skewed {
                     min: 1.0,
                     max: 100.0,
@@ -61,7 +61,7 @@ impl Default for ResotoolParams {
             ),
             attack: adsr_param("Attack (seconds)"),
             decay: adsr_param("Decay (seconds)"),
-            sustain: FloatParam::new("Sustain (seconds)", 1.0, FloatRange::Linear { min: 0.0, max: 1.0 }),
+            sustain: FloatParam::new("Sustain", 1.0, FloatRange::Linear { min: 0.0, max: 1.0 }),
             release: adsr_param("Release (seconds)"),
         }
     }
