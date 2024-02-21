@@ -23,6 +23,8 @@ struct ResotoolParams {
     pub sustain: FloatParam,
     #[id = "release"]
     pub release: FloatParam,
+    #[id = "wetdry" ]
+    pub wetdry: FloatParam,
 }
 
 impl Default for Resotool {
@@ -63,6 +65,7 @@ impl Default for ResotoolParams {
             decay: adsr_param("Decay (seconds)"),
             sustain: FloatParam::new("Sustain", 1.0, FloatRange::Linear { min: 0.0, max: 1.0 }),
             release: adsr_param("Release (seconds)"),
+            wetdry: FloatParam::new("Wet/Dry", 1.0, FloatRange::Linear { min: 0.0, max: 1.0 }),
         }
     }
 }
@@ -135,6 +138,7 @@ impl Plugin for Resotool {
         context: &mut impl ProcessContext<Self>,
     ) -> ProcessStatus {
         let voicer_params = VoicerParams {
+            wetdry: self.params.wetdry.value(),
             bandwidth: self.params.bandwidth.value(),
             attack: self.params.attack.value(),
             decay: self.params.decay.value(),

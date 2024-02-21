@@ -10,11 +10,13 @@ type VoiceSize = U8;
 pub struct Voicer {
     last_played: u32,
     voices: Box<[Voice; NUM_VOICES]>,
+    wetdry: Shared<f32>,
     voices_sounding: Shared<f32>,
     pub audio: Box<dyn AudioUnit32>,
 }
 
 pub struct VoicerParams {
+    pub wetdry: f32,
     pub bandwidth: f32,
     pub attack: f32,
     pub decay: f32,
@@ -29,6 +31,7 @@ impl Voicer {
     }
 
     pub fn update(&self, params: VoicerParams) {
+        self.wetdry.set(params.wetdry);
         for voice in self.voices.iter() {
             voice.bandwidth.set(params.bandwidth);
             voice.adsr.attack.set(params.attack);
@@ -70,6 +73,7 @@ impl Voicer {
     pub fn new() -> Self {
         let voices: [Voice; NUM_VOICES] = std::array::from_fn(|_| Voice::default());
         let voices_sounding: Shared<f32> = Shared::new(0.0);
+        let wetdry = Shared::new(1.0);
         let filterbank = stack::<VoiceSize, _, _>(|i| {
             let voice = &voices[i as usize];
             (
@@ -85,8 +89,11 @@ impl Voicer {
             )
                 >> resonator() * var_fn(&voices_sounding, |vs| NUM_VOICES as f32 / vs)
         });
-        let audio = Box::new(split() >> filterbank >> join());
+        let wet = (split() >> filterbank >> join()) * var(&wetdry);
+        let dry = pass() * var_fn(&wetdry, |wd| 1.0 - wd);
+        let audio = Box::new(wet & dry);
         Self {
+            wetdry: wetdry,
             last_played: 0,
             voices: Box::new(voices),
             voices_sounding: voices_sounding,
