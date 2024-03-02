@@ -676,7 +676,7 @@ dependencies = [
 
 [[package]]
 name = "resotool"
-version = "0.2.0"
+version = "0.3.1"
 dependencies = [
  "fundsp",
  "nih_plug",

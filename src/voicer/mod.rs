@@ -74,22 +74,21 @@ impl Voicer {
         let voices: [Voice; NUM_VOICES] = std::array::from_fn(|_| Voice::default());
         let voices_sounding: Shared<f32> = Shared::new(0.0);
         let wetdry = Shared::new(1.0);
-        let filterbank = stack::<VoiceSize, _, _>(|i| {
+        let filterbank = sum::<VoiceSize, _, _>(|i| {
             let voice = &voices[i as usize];
-            (
-                pass() *
-                (
-                    var(&voice.trigger) >>
-                    (adsr::adsr_shared(voice.adsr.attack.clone(),
-                                       voice.adsr.decay.clone(),
-                                       voice.adsr.sustain.clone(),
-                                       voice.adsr.release.clone())))
-                    | var(&voice.cutoff) | var(&voice.bandwidth
-                )
-            )
-                >> resonator() * var_fn(&voices_sounding, |vs| NUM_VOICES as f32 / vs)
+            (pass()
+                * (var(&voice.trigger)
+                    >> (adsr::adsr_shared(
+                        voice.adsr.attack.clone(),
+                        voice.adsr.decay.clone(),
+                        voice.adsr.sustain.clone(),
+                        voice.adsr.release.clone(),
+                    )))
+                | var(&voice.cutoff)
+                | var(&voice.bandwidth))
+                >> resonator()
         });
-        let wet = (split() >> filterbank >> join()) * var(&wetdry);
+        let wet = (split() >> filterbank) * var(&wetdry);
         let dry = pass() * var_fn(&wetdry, |wd| 1.0 - wd);
         let audio = Box::new(wet & dry);
         Self {
