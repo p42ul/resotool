@@ -92,11 +92,11 @@ impl Voicer {
         let dry = pass() * var_fn(&wetdry, |wd| 1.0 - wd);
         let audio = Box::new(wet & dry);
         Self {
-            wetdry: wetdry,
+            audio,
             last_played: 0,
             voices: Box::new(voices),
-            voices_sounding: voices_sounding,
-            audio: audio,
+            voices_sounding,
+            wetdry,
         }
     }
 }
